@@ -1,6 +1,6 @@
 """역할 정의 클래스 넷이 정말 역할로 분류되는지 추론기(HermiT)로 돌려 본다.
 
-    .venv/bin/python scripts/연구/mfg_hermit.py
+    python scripts/mfg_hermit.py
 
 **왜 만들었나.** 학회 원고 6.2 절은 「물질 인공물이 설비 역할을 가지면 정의상
 설비에 속한다」고 적고 「추론기를 실행하지 않았다」로 막아 두었다. 2026-10-10 검토에서

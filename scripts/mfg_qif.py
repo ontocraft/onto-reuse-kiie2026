@@ -1,8 +1,8 @@
 """QIF 3.0 스키마에서 무엇이 정의되어 있는지 센다.
 
-    .venv/bin/python scripts/연구/mfg_qif.py types      # 관심 타입의 필드
-    .venv/bin/python scripts/연구/mfg_qif.py sample     # 표본이 그중 무엇을 채웠나
-    .venv/bin/python scripts/연구/mfg_qif.py counts     # 파일별 complexType 수
+    python scripts/mfg_qif.py types      # 관심 타입의 필드
+    python scripts/mfg_qif.py sample     # 표본이 그중 무엇을 채웠나
+    python scripts/mfg_qif.py counts     # 파일별 complexType 수
 
 **왜 만들었나.** 2026-09-30 에 루트 스키마(`QIFDocument.xsd`)만 갖고 「표준에 시각이
 없다」 「공정으로 잇는 것을 우리가 만들어야 한다」고 적었다. 배포판을 받아 보니 둘 다

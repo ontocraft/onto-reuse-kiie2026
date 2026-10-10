@@ -1,7 +1,7 @@
 """제조 정비 AI 공통 스키마를 JSON 으로 내보내고 IOF 대응을 검사합니다.
 
-    .venv/bin/python scripts/연구/mfg_schema.py check    # IOF 대응이 실제로 있는지 봅니다
-    .venv/bin/python scripts/연구/mfg_schema.py export   # schema/ 에 JSON 을 씁니다
+    python scripts/mfg_schema.py check    # IOF 대응이 실제로 있는지 봅니다
+    python scripts/mfg_schema.py export   # schema/ 에 JSON 을 씁니다
 
 `docs/연구/제조-공통스키마.md` 의 3 장과 7 장을 데이터로 옮겨 적은 것입니다. 문서가
 설명이고 이 파일이 기계가 읽는 정본입니다. 둘이 갈라지지 않게 하려고 IOF 대응을
@@ -256,7 +256,7 @@ EXT_SOURCE = {
         "확인": "⚠️ **OWL 이 아니라 XML Schema 다.** 아래 이름은 XSD 요소 이름이고 "
               "관계는 id 참조 필드(keyref)다. 클래스와 객체 속성이 아니다. "
               "2026-09-30 에 측정 표본 하나(부품 15 개)에서 참조 사슬을 확인했다. "
-              "같은 날 배포판을 받아 타입 정의까지 확인했다(scripts/연구/mfg_qif.py). "
+              "같은 날 배포판을 받아 타입 정의까지 확인했다(scripts/mfg_qif.py). "
               "⚠️ 루트 스키마만 읽고 「표준에 없다」고 적었던 것을 정정했다. "
               "타입 정의는 하위 라이브러리에 있다",
     },

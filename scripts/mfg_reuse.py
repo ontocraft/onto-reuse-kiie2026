@@ -1,7 +1,7 @@
 """공개 온톨로지에서 무엇이 공통이고 무엇이 도메인 전용인지 잰다.
 
-    .venv/bin/python scripts/연구/mfg_reuse.py modules    # 모듈별 core 의존
-    .venv/bin/python scripts/연구/mfg_reuse.py shared     # 여러 모듈이 함께 쓰는 것
+    python scripts/mfg_reuse.py modules    # 모듈별 core 의존
+    python scripts/mfg_reuse.py shared     # 여러 모듈이 함께 쓰는 것
 
 여러 제조AI 온톨로지를 만들 때 「무엇을 공통으로 둘 것인가」가 첫 질문이다. IOF 는
 그 답을 모듈 구조로 이미 내놓았으므로 먼저 그것을 잰다 (ADR 0028).

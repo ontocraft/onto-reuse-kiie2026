@@ -1,6 +1,6 @@
 """역량 질문 X1 을 실제로 질의해 어디서 끊기는지 본다.
 
-    .venv/bin/python scripts/연구/mfg_x1_run.py
+    python scripts/mfg_x1_run.py
 
 X1: 「부적합이 발생했을 때 그 부품을 만든 공정과 그 공정에 쓰인 설비의 정비 상태를
 확인한다」. `mfg_cover.py` 는 X1 의 요구 요소가 스키마에 **있다**고만 기록한다.
