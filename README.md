@@ -19,6 +19,7 @@ assignments, the derived schema, and analysis scripts.
 | `scripts/mfg_cover.py` | 역량 질문과 스키마 요소의 대조(7절) |
 | `scripts/mfg_hermit.py` | 역할 정의 클래스 4개의 HermiT 분류(6.2절) |
 | `scripts/mfg_x1_run.py` | 질문 X1을 SPARQL로 실행해 끊기는 연결을 확인(7절) |
+| `scripts/mfg_qif_corpus.py` | 공개 QIF 파일 62개에서 질문 다섯의 QIF 구간이 채워지는지 집계(7절, 표 7) |
 | `scripts/make_conf_figures.py` | 논문 그림 1~3을 `figures/`에 그린다. 그림 3은 `data/mfg/대조-단계.json`을 읽는다 |
 
 배정은 연구자 한 명이 정의를 읽고 판정한 결과이다. `assigned`는 필요한 정의가 스키마에
@@ -37,6 +38,7 @@ assignments, the derived schema, and analysis scripts.
 | IOF (2026-09-18, 커밋 `b5384d7`) | https://github.com/iofoundry/ontology | `data/ontology/iof-src/<모듈>__<파일>.rdf` |
 | QIF 3.0 xsd (2026-09-30) | https://qifstandards.org | `data/ontology/ext/*.xsd` |
 | QIF 측정 파일 2개 (커밋 `99f0993`) | https://github.com/QualityInformationFramework/qif-workshop `models/` | `data/ontology/ext/표본454.qif`, `표본473.qif` |
+| QIF 예제 파일 (커밋 `64268c1`) | https://github.com/QualityInformationFramework/qif-community `samples/` | `data/ontology/ext/qif-community/samples/` |
 | BFO 2020 (2026-10-10) | http://purl.obolibrary.org/obo/bfo/2020/bfo.owl | `data/ontology/ext/bfo-2020.owl` |
 
 ```bash
@@ -57,6 +59,15 @@ cp /tmp/qif3/xsd/QIFLibrary/*.xsd /tmp/qif3/xsd/QIFApplications/*.xsd data/ontol
 B=https://raw.githubusercontent.com/QualityInformationFramework/qif-workshop/99f0993723f3859ef955f1bb13e966bfb3a5e5b1/models
 curl -sL -o data/ontology/ext/표본454.qif $B/000454_D-MV-FH-2.qif
 curl -sL -o data/ontology/ext/표본473.qif $B/000473_A-MV-FH.qif
+
+# QIF 예제 파일과 qif-workshop 네 파일 (mfg_qif_corpus.py)
+git clone https://github.com/QualityInformationFramework/qif-community /tmp/qc
+git -C /tmp/qc checkout -q 64268c175a3058d09db29c14869b94b781518709
+mkdir -p data/ontology/ext/qif-community data/ontology/ext/qif-workshop
+cp -R /tmp/qc/samples data/ontology/ext/qif-community/
+for f in 000454_D-MV-FH-2.qif 000454_D_v2.qif 000473_A-MV-FH.qif 000473_A_v2.qif; do
+  curl -sL -o data/ontology/ext/qif-workshop/$f $B/$f
+done
 
 # BFO 2020
 curl -sL -o data/ontology/ext/bfo-2020.owl http://purl.obolibrary.org/obo/bfo/2020/bfo.owl
@@ -79,6 +90,7 @@ python scripts/mfg_qif.py sample        # 64 중 8 · ManufacturingProcessId 0
 python scripts/mfg_cover.py             # 26 · 22 · 4 · 0
 python scripts/mfg_hermit.py            # 4 / 4
 python scripts/mfg_x1_run.py            # 부적합 224 · 실제 자료 답 0
+python scripts/mfg_qif_corpus.py        # 파일 62 · Q1 24 · Q2 0 · Q3 8 · P2 0 · X1 0
 python scripts/make_conf_figures.py     # figures/ 에 그림 1~3
 ```
 
