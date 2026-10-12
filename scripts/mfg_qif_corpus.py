@@ -29,12 +29,16 @@
 """
 from __future__ import annotations
 
+import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
 DIRS = [Path("data/ontology/ext/qif-community/samples"), Path("data/ontology/ext/qif-workshop")]
+# 같은 예제의 변형: 식별자 형식만 다르거나(_w_UUIDs · _W_QPIDS) 형상만 뺀 것(form_only).
+# 2026-10-13 검토에서 변형 쌍을 따로 세라는 지적을 받았다. 변형을 뺀 값도 함께 낸다
+VARIANT = re.compile(r"(_w_UUIDs|_W_QPIDS|-?form_only)", re.I)
 NS = "{http://qifstandards.org/xsd/qif3}"
 QUESTIONS = ["Q1", "Q2", "Q2*", "Q3", "Q3*", "P2", "X1"]
 
@@ -163,6 +167,13 @@ def main() -> int:
     for q in QUESTIONS:
         k = sum(1 for r in rows.values() if r[q])
         print(f"  {q:4s} {k:3d} / {n}   ({total[q]})")
+    # 변형을 뺀 값과 두 공개 측정 파일의 몫
+    base = {p: r for p, r in rows.items() if not VARIANT.search(p.name)}
+    ws = sum(r["FAIL"] for p, r in rows.items() if "workshop" in str(p))
+    print(f"\n변형 {n - len(base)} 개를 뺀 {len(base)} 개: 측정 {sum(r['측정'] for r in base.values())} · "
+          f"FAIL {sum(r['FAIL'] for r in base.values())} · 일련번호까지 {sum(r['FAIL→일련번호'] for r in base.values())} · "
+          + " · ".join(f"{q} {sum(1 for r in base.values() if r[q])}" for q in QUESTIONS if "*" not in q))
+    print(f"qif-workshop 측정 파일 두 개의 FAIL {ws} / {total['FAIL']} ({100 * ws / total['FAIL']:.0f}%)")
     if "--files" in sys.argv:
         print()
         for p, r in rows.items():
