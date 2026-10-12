@@ -15,7 +15,8 @@ IOF 어휘로 지식그래프를 만들고 「부적합이 난 부품을 만든 
 
     python scripts/mfg_kit.py                                  # kit/examples 로 실행
     python scripts/mfg_kit.py --data kit/examples-csv --qif    # QIF 없이 measurements.csv 로
-    python scripts/mfg_kit_more.py                             # 질문 셋을 더한 비용
+    python scripts/mfg_kit_more.py                             # 질문 넷을 더한 비용
+    python scripts/mfg_kit_check.py --data kit/examples        # 적재 전 점검
 
 ## 들어 있는 것
 
@@ -29,7 +30,11 @@ IOF 어휘로 지식그래프를 만들고 「부적합이 난 부품을 만든 
 | `scripts/mfg_cover.py` | 역량 질문과 스키마 요소의 대조(7절) |
 | `scripts/mfg_hermit.py` | 역할 정의 클래스 4개의 HermiT 분류(6.2절) |
 | `scripts/mfg_kit.py` | 시작 키트. 적재 · 역할 분류 구체화 · 질의 |
-| `scripts/mfg_kit_more.py` | 키트 어휘를 바꾸지 않고 질문 셋(Q2 · M11 · X5)을 더한 비용(5절) |
+| `scripts/mfg_kit_more.py` | 키트 어휘를 바꾸지 않고 질문 넷(Q1 · Q2 · M11 · X5)을 더한 비용과 Q1 의 판정 대조(5절) |
+| `scripts/mfg_kit_check.py` | 적재 전 점검. 일련번호 표기 · 고유성 · 설비 문자열 · 정비 상태 시각 · 정비 상태 파일 |
+| `scripts/mfg_kit_scale.py` | 합성 자료 1 천 · 1 만 건으로 적재와 X1 시간을 잰다 |
+| `scripts/mfg_kit_export.py` | 키트 그래프를 Neo4j 가 읽는 CSV 로 내보낸다. 라벨은 `Kit` 접두어 |
+| `scripts/mfg_kit_status.py` | 역량 질문 26 개의 현황: 실행 6 · 자료만 있으면 16 · 스키마 보강 4 |
 | `scripts/nist_to_kit.py` | NIST 박스 조립체 자료를 키트 입력으로 바꾼다(논문 5.2절) |
 | `scripts/mfg_x1_run.py` | 질문 X1을 SPARQL로 실행해 끊기는 연결을 확인(7절) |
 | `scripts/mfg_qif_corpus.py` | 공개 QIF 파일 62개에서 질문 다섯의 QIF 구간이 채워지는지 집계(7절, 표 7) |

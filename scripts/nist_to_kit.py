@@ -20,6 +20,11 @@
 **지어내는 값은 없다.** 공정 실행의 시작·끝은 로그의 첫·끝 시각이고, 설비는 파일 이름의
 `Hurco02` 다. 정비 기록은 이 자료에 **없다**. 정비 상태 파일은 만들지 않는다.
 
+대신 `machine_events.csv` 를 만든다. 로그의 `Program_Status` 가 FEED_HOLD 나 PROGRAM_STOPPED 로
+바뀐 시각부터 다음 ACTIVE 까지를 **설비 중단 구간**으로 적는다(2026-10-12). 전체 MTConnect
+XML 에도 알람(Condition) 항목은 없고 비상정지는 UNAVAILABLE 뿐이라, 이것이 이 자료에서 얻을 수
+있는 유일한 「그때 설비 상태」다. **정비 상태가 아니다.** 원고에는 그렇게 적는다.
+
 ⚠️ **가정 하나.** 같은 번호 NN 이면 같은 부품이라고 본다. 로그는 `NNof20`, 초도품 검사는
    `NN`, 수입검사는 `ANN` 이다. NIST 문서는 부품 인스턴스별로 정리했다고만 하고 이 대응
    규칙을 밝히지 않는다. 부품 대장의 `system` 열에 「가정」을 적어 둔다.
@@ -68,13 +73,55 @@ def main() -> int:
             continue
         rows = [line.rstrip("\n").split("|") for line in open(p, encoding="utf-8", errors="replace")
                 if line.count("|") >= 2]
-        times = [r[0] for r in rows if r[0][:2] == "20"]
-        programs = sorted({r[2] for r in rows if r[1] == "Program_Name_Running" and r[2]})
         nn = int(m.group("nn"))
         machines.add(m.group("machine"))
-        runs.append({"model_number": "BOX", "serial_number": str(nn), "run_id": p.stem,
-                     "operation": "+".join(programs) or "unknown", "machine_id": m.group("machine"),
-                     "operator_id": "", "start": times[0][:16], "end": times[-1][:16]})
+        # 작업 단위: 첫 ACTIVE 부터 PROGRAM_COMPLETED 까지. 중간의 FEED_HOLD · PROGRAM_STOPPED 는
+        # 그 작업 안의 중단이다. 부품 하나가 여러 날에 걸쳐 여러 작업을 거치므로 파일 전체를
+        # 한 실행으로 잡으면 다른 부품의 중단까지 겹친다 (2026-10-12 에 그렇게 틀렸다)
+        seg_start, seg_prog, k = None, set(), 0
+        for r in rows:
+            if r[1] == "Program_Name_Running" and r[2] and seg_start:
+                seg_prog.add(r[2])
+            if r[1] != "Program_Status":
+                continue
+            if r[2] == "ACTIVE" and seg_start is None:
+                seg_start = r[0]
+            elif r[2] == "PROGRAM_COMPLETED" and seg_start is not None:
+                k += 1
+                runs.append({"model_number": "BOX", "serial_number": str(nn),
+                             "run_id": f"{p.stem}-op{k}",
+                             "operation": "+".join(sorted(seg_prog)) or f"op{k}",
+                             "machine_id": m.group("machine"), "operator_id": "",
+                             "start": seg_start[:16], "end": r[0][:16]})
+                seg_start, seg_prog = None, set()
+
+    # 설비 중단 구간: FEED_HOLD · PROGRAM_STOPPED → 다음 ACTIVE
+    events = []
+    for p in logs:
+        m = MACHINE.match(p.stem)
+        if not m:
+            continue
+        rows = [line.rstrip("\n").split("|") for line in open(p, encoding="utf-8", errors="replace")
+                if line.count("|") >= 2]
+        status = [(r[0], r[2]) for r in rows if r[1] == "Program_Status"]
+        open_at, seg = None, 0
+        for t, v in status:
+            if v in ("FEED_HOLD", "PROGRAM_STOPPED") and open_at is None:
+                open_at = (t, v)
+            elif v == "ACTIVE" and open_at is not None:
+                events.append({"identifier": m.group("machine"), "event": open_at[1],
+                               "start": open_at[0][:16], "end": t[:16],
+                               "run_id": f"{p.stem}-op{seg + 1}"})
+                open_at = None
+            elif v == "PROGRAM_COMPLETED":
+                seg += 1
+        if open_at is not None:
+            events.append({"identifier": m.group("machine"), "event": open_at[1],
+                           "start": open_at[0][:16], "end": "", "run_id": f"{p.stem}-op{seg + 1}"})
+    with open(OUT / "machine_events.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["identifier", "event", "start", "end", "run_id"])
+        w.writeheader()
+        w.writerows(events)
 
     with open(OUT / "mes_process_runs.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(runs[0]))
@@ -110,11 +157,11 @@ def main() -> int:
     if stale.exists():
         stale.unlink()
 
-    print(f"공정 실행 {len(runs)} (기계 {sorted(machines)}) · "
+    print(f"공정 실행(작업 단위) {len(runs)} · 부품 {len({r['serial_number'] for r in runs})} (기계 {sorted(machines)}) · "
           f"시각 {min(r['start'] for r in runs)} ~ {max(r['end'] for r in runs)}")
     for k, (n, j) in seen.items():
         print(f"{k}: 일련번호 {n} · 번호로 부품에 맞춘 것 {j}")
-    print(f"부품 대장 {len(registry)} 줄 → {OUT}")
+    print(f"부품 대장 {len(registry)} 줄 · 설비 중단 구간 {len(events)} 건 → {OUT}")
     print("⚠️ 같은 번호면 같은 부품이라는 대응은 NIST 문서가 밝히지 않은 가정이다. 정비 기록은 없다.")
     return 0
 

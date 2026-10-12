@@ -7,6 +7,7 @@
 
 | 질문 | 어디서 | 무엇을 묻나 |
 |---|---|---|
+| Q1 | 역량 질문 목록 | 이 특성의 측정값과 상·하한은 얼마이고 판정은 무엇인가 |
 | Q2 | 역량 질문 목록 | 이 품번의 부적합이 처음 난 공정 실행은 언제이고 그 뒤로 몇 건인가 |
 | M11 | 역량 질문 목록 | 이 설비는 지금 가동 상태인가 열화·고장 상태인가 (끝 시각이 없는 상태) |
 | X5 | 새 질문 | 이 정비 작업지시가 다룬 상태 구간 동안 만든 부품은 몇 개이고 그중 부적합은 몇 건인가 |
@@ -27,6 +28,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 import mfg_kit as kit  # noqa: E402
 
 QUESTIONS = {
+    "Q1 공차와 적합 판정": """
+SELECT ?part ?char ?value ?status ?tol ?min ?max WHERE {
+  ?m a qif:CharacteristicMeasurement ; qif:ActualComponentId ?part ; rdfs:label ?char ;
+     qif:status ?status ; qif:Value ?value ; qif:CharacteristicDefinitionId ?d .
+  OPTIONAL { ?d qif:ToleranceValue ?tol }
+  OPTIONAL { ?d qif:MinValue ?min ; qif:MaxValue ?max }
+}""",
     "Q2 부적합의 이력(공정 시각 기준)": """
 SELECT ?model (MIN(?t) AS ?first) (COUNT(DISTINCT ?m) AS ?fails) WHERE {
   ?m qif:status "FAIL" ; qif:ActualComponentId ?part .
@@ -66,6 +74,16 @@ def main() -> int:
         print(f"{name:34s} {lines:2d}  {len(rows):2d}  {ms:7.1f}")
         for r in rows[:4]:
             print("    ", " · ".join(str(v).rsplit("/", 1)[-1] for v in r))
+    # Q1 의 덤: 형상 공차(ToleranceValue 하나, 값이 그 이하면 적합)에서만 판정과 값을 대조한다.
+    # 치수 공차는 명목값 기준 편차라 명목값까지 읽어야 하므로 여기서 대조하지 않는다
+    rows = list(g.query(QUESTIONS["Q1 공차와 적합 판정"], initNs=kit.PREFIX))
+    form = [r for r in rows if r.tol is not None and str(r.status) in ("PASS", "FAIL")]
+    size = [r for r in rows if r.min is not None]
+    inconsistent = [r for r in form if (str(r.status) == "FAIL") != (float(r.value) > float(r.tol))]
+    print(f"\nQ1: 공차가 붙은 측정 {len(rows)} (형상 공차 {len(form)} · 치수 공차 {len(size)}) · "
+          f"형상 공차에서 판정과 값이 다른 것 {len(inconsistent)}")
+    for r in inconsistent[:5]:
+        print(f"     {str(r.part).rsplit('/', 1)[-1]} {r.char} 값 {float(r.value):.4f} 공차 {float(r.tol):.4f} 판정 {r.status}")
     vocab_after = {t for t in set(g.predicates()) | set(g.objects(None, kit.RDF.type))}
     print(f"\n어휘 추가 {len(vocab_after - vocab_before)} 개 · 스키마 변경 없음")
     print("⚠️ 답의 값은 시험 데이터라 뜻이 없다. 잰 것은 줄 수 · 어휘 추가 · 실행 시간이다.")

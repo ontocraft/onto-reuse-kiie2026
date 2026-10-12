@@ -9,10 +9,14 @@
 |---|---|---|
 | QIF 측정 파일 | CMM 소프트웨어 | 측정 → 판정 → 실물 부품(품번/일련번호) |
 | measurements.csv | QIF 를 못 내보내는 CMM·검사 기록 | 같은 것. 한 줄이 측정 하나 (2026-10-12, 독자 범위를 넓히려고) |
+
+로트 단위 생산: measurements.csv 와 mes_process_runs.csv 에서 serial_number 가 비고 lot_number 가
+있으면 로트(BFO 객체 집합체, IOF LotIdentifier)를 대상으로 잇는다. 로트 안의 개별 부품은 가리지 않는다.
 | mes_process_runs.csv | MES | 부품 → 공정 실행 → 설비 문자열 · 작업자 · 시각 |
 | equipment_registry.csv | 설비 대장 | 시스템마다 다른 설비 문자열 → 설비 하나 · 역할 |
 | maintenance_states.csv | CMMS | 설비 문자열 → 정비 상태 · 시작·끝 시각 · 작업지시 (없으면 건너뜀) |
 | part_registry.csv (선택) | 품질·생산 | 시스템마다 다른 부품 이름 → 부품 하나 |
+| machine_events.csv (선택) | MTConnect 등 기계 로그 | 가공 중 중단 같은 사건. run_id 가 있으면 그 작업 실행의 부분(occurrent part of)으로 둔다. 설비 상태가 아니다 |
 
 QIF 는 3.0 과 2.1 을 읽는다. 2.1 은 측정 요소를 `…CharacteristicActual` 이라 부른다.
 
@@ -54,7 +58,7 @@ BFO_OWL = Path("data/ontology/ext/bfo-2020.owl")
 QIF_FILES = [Path("data/ontology/ext/표본454.qif"), Path("data/ontology/ext/표본473.qif")]
 ROLE = {"equipment": IOF.EquipmentRole, "maintainable": IOF.MaintainableMaterialItemRole}
 STATE = {"Operating": IOF.OperatingState, "Degraded": IOF.DegradedState, "Failed": IOF.FailedState}
-PREFIX = {"iof": IOF, "bfo": BFO, "qif": QIF, "kit": KIT}
+PREFIX = {"iof": IOF, "bfo": BFO, "qif": QIF, "kit": KIT, "rdfs": RDFS}
 
 
 def local(tag: str) -> str:
@@ -149,6 +153,27 @@ def identifier(g: Graph, system: str, value: str, target) -> URIRef:
     return i
 
 
+def part_key(row: dict) -> tuple[str, bool]:
+    """품번/일련번호. 일련번호가 없고 lot_number 가 있으면 품번/lot/로트번호 (로트 단위 생산)."""
+    if row.get("serial_number"):
+        return f"{row['model_number']}/{row['serial_number']}", False
+    if row.get("lot_number"):
+        return f"{row['model_number']}/lot/{row['lot_number']}", True
+    raise ValueError(f"serial_number 도 lot_number 도 없다: {row}")
+
+
+def ensure_part(g: Graph, key: str, lot: bool):
+    """부품(물질 인공물) 또는 로트(BFO 객체 집합체). 식별자는 IOF Identifier 또는 LotIdentifier."""
+    part = designated(g, key)
+    if part is None:
+        part = EX["part/" + quote(key, safe="/")]
+        g.add((part, RDF.type, BFO.BFO_0000027 if lot else IOF.MaterialArtifact))
+        i = identifier(g, "lot" if lot else "serial", key, part)
+        if lot:
+            g.add((i, RDF.type, IOF.LotIdentifier))
+    return part
+
+
 def load_measurements_csv(g: Graph, path: Path) -> dict:
     """QIF 가 없을 때 CSV 로 받는다. 열: model_number, serial_number, characteristic, value, status.
 
@@ -158,12 +183,8 @@ def load_measurements_csv(g: Graph, path: Path) -> dict:
     n = linked = 0
     parts = set()
     for k, row in enumerate(csv.DictReader(open(path, encoding="utf-8"))):
-        key = f"{row['model_number']}/{row['serial_number']}"
-        part = designated(g, key)
-        if part is None:
-            part = EX["part/" + quote(key, safe="/")]
-            g.add((part, RDF.type, IOF.MaterialArtifact))
-            identifier(g, "serial", key, part)
+        key, lot = part_key(row)
+        part = ensure_part(g, key, lot)
         parts.add(part)
         m = EX[f"meas/{path.stem}/{k}"]
         g.add((m, RDF.type, QIF.CharacteristicMeasurement))
@@ -206,6 +227,10 @@ def load_qif(g: Graph, path: Path) -> dict:
                     g.add((part, RDF.type, IOF.MaterialArtifact))
                     identifier(g, "serial", f"{model}/{sn}", part)
                 parts[e.get("id")] = part
+    def ref(e, name):
+        c = e.find(f"./{{*}}{name}")
+        return by_id.get(c.text.strip()) if c is not None and c.text else None
+
     n = linked = 0
     for e in root.iter():
         if not local(e.tag).endswith(("CharacteristicMeasurement", "CharacteristicActual")):
@@ -216,6 +241,29 @@ def load_qif(g: Graph, path: Path) -> dict:
         st = e.find("./{*}Status/{*}CharacteristicStatusEnum")
         if st is not None:
             g.add((m, QIF.status, Literal(st.text)))
+        g.add((m, RDFS.label, Literal(local(e.tag).replace("CharacteristicMeasurement", "")
+                                      .replace("CharacteristicActual", ""))))
+        # 측정값. 측정 요소의 MaxValue · MinValue 는 공차가 아니라 측정값의 최대·최소라 쓰지 않는다
+        # (2026-10-12 에 공차로 읽어 660 건 중 613 건이 어긋나는 것으로 잘못 셌다)
+        v = e.find("./{*}Value")
+        if v is not None and v.text:
+            g.add((m, QIF.Value, Literal(float(v.text), datatype=XSD.decimal)))
+        # 공차는 측정 → 항목 → 명목 → 정의를 따라가 정의에서 읽는다. 형상 공차는 ToleranceValue,
+        # 치수 공차는 Tolerance/MaxValue · MinValue(명목값 기준 편차). 요소 이름 그대로 쓴다
+        item = ref(e, "CharacteristicItemId")
+        nominal = ref(item, "CharacteristicNominalId") if item is not None else None
+        definition = ref(nominal, "CharacteristicDefinitionId") if nominal is not None else None
+        if definition is not None:
+            d = EX["def/" + quote(path.stem, safe="") + "/" + definition.get("id")]
+            g.add((d, RDF.type, QIF.CharacteristicDefinition))
+            g.add((m, QIF.CharacteristicDefinitionId, d))
+            tv = definition.find("./{*}ToleranceValue")
+            if tv is not None and tv.text:
+                g.add((d, QIF.ToleranceValue, Literal(float(tv.text), datatype=XSD.decimal)))
+            for name in ("MaxValue", "MinValue"):
+                t = definition.find(f"./{{*}}Tolerance/{{*}}{name}")
+                if t is not None and t.text:
+                    g.add((d, QIF[name], Literal(float(t.text), datatype=XSD.decimal)))
         refs = [c.text.strip() for c in e if local(c.tag) == "ActualComponentId" and c.text]
         x = e
         while not refs and x in parent:          # 측정 묶음 단위로 부품을 가리키는 경우
@@ -261,12 +309,10 @@ def load_mes(g: Graph, path: Path) -> dict:
         g.add((run, RDFS.label, Literal(row["operation"])))
         when(g, run, KIT.startsAt, row["start"])
         when(g, run, KIT.endsAt, row["end"])
-        part = designated(g, f"{row['model_number']}/{row['serial_number']}")
-        if part is None:                           # QIF 에 없는 부품도 MES 에는 있을 수 있다
-            part = EX[f"part/{row['model_number']}/{row['serial_number']}"]
-            g.add((part, RDF.type, IOF.MaterialArtifact))
-            identifier(g, "serial", f"{row['model_number']}/{row['serial_number']}", part)
-            stats["QIF 에 없는 부품"] += 1
+        key, lot = part_key(row)
+        if designated(g, key) is None:             # QIF 에 없는 부품도 MES 에는 있을 수 있다
+            stats["품질 쪽에 없는 부품·로트"] += 1
+        part = ensure_part(g, key, lot)
         g.add((run, IOF.hasOutput, part))
         eq = designated(g, row["machine_id"])
         if eq is None:
@@ -279,6 +325,34 @@ def load_mes(g: Graph, path: Path) -> dict:
             identifier(g, "operator", row["operator_id"], person)
             g.add((run, HAS_PARTICIPANT, person))
         stats["공정 실행"] += 1
+    return dict(stats)
+
+
+def load_machine_events(g: Graph, path: Path) -> dict:
+    """기계 로그의 사건 구간. BFO 과정(BFO_0000015)에 설비를 참여자로 붙이고 이름은 rdfs:label 로 둔다.
+
+    run_id 가 있으면 그 작업 실행의 부분(BFO_0000132 occurrent part of)으로 둔다. NIST 자료의
+    PROGRAM_STOPPED 는 기계가 아니라 그 부품 프로그램의 상태라서, 시간 겹침으로 다른 부품의
+    작업과 이으면 틀린다(2026-10-12). 정비 상태가 아니고 IOF 정비 상태로 바꾸지 않는다.
+    """
+    stats = Counter()
+    for k, row in enumerate(csv.DictReader(open(path, encoding="utf-8"))):
+        eq = designated(g, row["identifier"])
+        if eq is None:
+            stats["설비 대장에 없는 설비 문자열"] += 1
+            continue
+        ev = EX[f"event/{k}"]
+        g.add((ev, RDF.type, BFO.BFO_0000015))
+        g.add((ev, RDFS.label, Literal(row["event"])))
+        g.add((ev, HAS_PARTICIPANT, eq))
+        when(g, ev, KIT.startsAt, row["start"])
+        when(g, ev, KIT.endsAt, row["end"])
+        if row.get("run_id"):
+            run = EX["run/" + quote(row["run_id"], safe="")]
+            if (run, RDF.type, IOF.ManufacturingProcess) in g:
+                g.add((ev, BFO.BFO_0000132, run))
+                stats["작업 실행에 묶인 사건"] += 1
+        stats["설비 사건"] += 1
     return dict(stats)
 
 
@@ -331,6 +405,14 @@ P2 = """
 SELECT ?run ?eq ?who WHERE {
   ?run a iof:ManufacturingProcess ; bfo:BFO_0000057 ?eq , ?who .
   ?eq a iof:PieceOfEquipment . ?who a iof:Person .
+}"""
+
+# X1E: 부적합 부품을 가공한 작업 실행 안에 중단 같은 사건이 있었는가. 설비 상태가 아니다
+X1E = """
+SELECT DISTINCT ?m ?part ?run ?ev ?label WHERE {
+  ?m a qif:CharacteristicMeasurement ; qif:status "FAIL" ; qif:ActualComponentId ?part .
+  ?run a iof:ManufacturingProcess ; iof:hasOutput ?part .
+  ?ev a bfo:BFO_0000015 ; bfo:BFO_0000132 ?run ; rdfs:label ?label .
 }"""
 
 # X2: 정비 상태별로 그 구간에 만든 부품의 부적합 측정 비율
@@ -389,6 +471,8 @@ def build(data: Path, qif_files: list[Path]) -> tuple[Graph, list, dict]:
         print("CMMS:", load_maintenance(g, a.data / "maintenance_states.csv"))
     else:
         print("CMMS: 정비 상태 파일이 없다. X1 의 마지막 연결은 답할 수 없다")
+    if (a.data / "machine_events.csv").exists():
+        print("기계 사건:", load_machine_events(g, a.data / "machine_events.csv"))
     return g, rules, closure
 
 
@@ -412,6 +496,14 @@ def main() -> int:
         print(f"  {label:24s} {b:6d}  {count(g, pattern):6d}")
     by_state = Counter(str(r.stype).rsplit("/", 1)[-1] for r in after)
     print(f"  → 그때의 정비 상태   {len(after):5d}   {dict(by_state)}")
+
+    if (a.data / "machine_events.csv").exists():
+        ev = list(g.query(X1E, initNs=PREFIX))
+        fails = count(g, '?m a qif:CharacteristicMeasurement ; qif:status "FAIL" .')
+        parts = {r.part for r in ev}
+        print(f"  → 가공 작업 중 중단(설비 상태 아님)  부적합 측정 {len({r.m for r in ev})} / {fails} · "
+              f"부품 {len(parts)} {sorted(str(p).rsplit('/', 1)[-1] for p in parts)} · "
+              f"사건 {len({r.ev for r in ev})} {dict(Counter(str(r.label) for r in ev))}")
 
     p2 = list(g.query(P2, initNs=PREFIX))
     print(f"\nP2 공정 실행의 설비와 작업자: {len({r.run for r in p2})} 건의 공정 실행에서 답함")
