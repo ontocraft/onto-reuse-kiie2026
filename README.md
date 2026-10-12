@@ -27,6 +27,7 @@ IOF 어휘로 지식그래프를 만들고 「부적합이 난 부품을 만든 
 | `scripts/mfg_cover.py` | 역량 질문과 스키마 요소의 대조(7절) |
 | `scripts/mfg_hermit.py` | 역할 정의 클래스 4개의 HermiT 분류(6.2절) |
 | `scripts/mfg_kit.py` | 시작 키트. 적재 · 역할 분류 구체화 · 질의 |
+| `scripts/nist_to_kit.py` | NIST 박스 조립체 자료를 키트 입력으로 바꾼다(논문 5.2절) |
 | `scripts/mfg_x1_run.py` | 질문 X1을 SPARQL로 실행해 끊기는 연결을 확인(7절) |
 | `scripts/mfg_qif_corpus.py` | 공개 QIF 파일 62개에서 질문 다섯의 QIF 구간이 채워지는지 집계(7절, 표 7) |
 | `scripts/make_conf_figures.py` | 논문 그림 1~3을 `figures/`에 그린다. 그림 3은 `data/mfg/대조-단계.json`을 읽는다 |
@@ -48,6 +49,7 @@ IOF 어휘로 지식그래프를 만들고 「부적합이 난 부품을 만든 
 | QIF 3.0 xsd (2026-09-30) | https://qifstandards.org | `data/ontology/ext/*.xsd` |
 | QIF 측정 파일 2개 (커밋 `99f0993`) | https://github.com/QualityInformationFramework/qif-workshop `models/` | `data/ontology/ext/표본454.qif`, `표본473.qif` |
 | QIF 예제 파일 (커밋 `64268c1`) | https://github.com/QualityInformationFramework/qif-community `samples/` | `data/ontology/ext/qif-community/samples/` |
+| NIST 박스 조립체 (커밋 `968279f`) | https://github.com/usnistgov/smstestbed `tdp/mtc/` 의 FAIR · QIF-IncomingInspection · PartData 중 Box 파일 | `data/ontology/ext/nist-smstb/` 아래 같은 폴더 이름 |
 | BFO 2020 (2026-10-10) | http://purl.obolibrary.org/obo/bfo/2020/bfo.owl | `data/ontology/ext/bfo-2020.owl` |
 
 ```bash

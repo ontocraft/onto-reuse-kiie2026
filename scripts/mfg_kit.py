@@ -10,7 +10,10 @@
 | QIF 측정 파일 | CMM 소프트웨어 | 측정 → 판정 → 실물 부품(품번/일련번호) |
 | mes_process_runs.csv | MES | 부품 → 공정 실행 → 설비 문자열 · 작업자 · 시각 |
 | equipment_registry.csv | 설비 대장 | 시스템마다 다른 설비 문자열 → 설비 하나 · 역할 |
-| maintenance_states.csv | CMMS | 설비 문자열 → 정비 상태 · 시작·끝 시각 · 작업지시 |
+| maintenance_states.csv | CMMS | 설비 문자열 → 정비 상태 · 시작·끝 시각 · 작업지시 (없으면 건너뜀) |
+| part_registry.csv (선택) | 품질·생산 | 시스템마다 다른 부품 이름 → 부품 하나 |
+
+QIF 는 3.0 과 2.1 을 읽는다. 2.1 은 측정 요소를 `…CharacteristicActual` 이라 부른다.
 
 끊긴 곳 넷을 결정기록대로 메운다.
 
@@ -32,6 +35,7 @@ import time
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
+from urllib.parse import quote
 
 from rdflib import OWL, RDF, RDFS, BNode, Graph, Literal, Namespace, URIRef
 from rdflib.collection import Collection
@@ -136,12 +140,23 @@ def when(g: Graph, subject, prop, text: str) -> None:
 
 def identifier(g: Graph, system: str, value: str, target) -> URIRef:
     """식별자 개체가 대상을 지칭한다 (0036). designates 는 함수적이다."""
-    i = EX[f"id/{system}/{value}"]
+    i = EX["id/" + quote(system, safe="") + "/" + quote(value, safe="")]
     g.add((i, RDF.type, IOF.Identifier))
     g.add((i, KIT.identifierValue, Literal(value)))
     g.add((i, KIT.identifierSystem, Literal(system)))
     g.add((i, IOF.designates, target))
     return i
+
+
+def load_part_registry(g: Graph, path: Path) -> int:
+    """같은 부품을 시스템마다 다르게 부를 때, 식별자 여럿이 부품 하나를 지칭하게 한다 (0036)."""
+    n = 0
+    for row in csv.DictReader(open(path, encoding="utf-8")):
+        part = EX[f"part/{row['part_id']}"]
+        g.add((part, RDF.type, IOF.MaterialArtifact))
+        identifier(g, row["system"], row["identifier"], part)
+        n += 1
+    return n
 
 
 def load_qif(g: Graph, path: Path) -> dict:
@@ -155,16 +170,18 @@ def load_qif(g: Graph, path: Path) -> dict:
         if local(e.tag) == "ActualComponent":
             sn = next((c.text.strip() for c in e if local(c.tag) == "SerialNumber" and c.text), None)
             if sn:
-                part = EX[f"part/{model}/{sn}"]
-                g.add((part, RDF.type, IOF.MaterialArtifact))
-                identifier(g, "serial", f"{model}/{sn}", part)
+                part = designated(g, f"{model}/{sn}")   # 부품 대장에 있으면 그 부품
+                if part is None:
+                    part = EX["part/" + quote(f"{model}/{sn}", safe="/")]
+                    g.add((part, RDF.type, IOF.MaterialArtifact))
+                    identifier(g, "serial", f"{model}/{sn}", part)
                 parts[e.get("id")] = part
     n = linked = 0
     for e in root.iter():
-        if not local(e.tag).endswith("CharacteristicMeasurement"):
+        if not local(e.tag).endswith(("CharacteristicMeasurement", "CharacteristicActual")):
             continue
         n += 1
-        m = EX[f"meas/{path.stem}/{e.get('id')}"]
+        m = EX["meas/" + quote(path.stem, safe="") + "/" + e.get("id")]
         g.add((m, RDF.type, QIF.CharacteristicMeasurement))
         st = e.find("./{*}Status/{*}CharacteristicStatusEnum")
         if st is not None:
@@ -209,7 +226,7 @@ def designated(g: Graph, value: str):
 def load_mes(g: Graph, path: Path) -> dict:
     stats = Counter()
     for row in csv.DictReader(open(path, encoding="utf-8")):
-        run = EX[f"run/{row['run_id']}"]
+        run = EX["run/" + quote(row["run_id"], safe="")]
         g.add((run, RDF.type, IOF.ManufacturingProcess))
         g.add((run, RDFS.label, Literal(row["operation"])))
         when(g, run, KIT.startsAt, row["start"])
@@ -330,13 +347,20 @@ def main() -> int:
     print(f"IOF 에서 뽑은 역할 규칙 {len(rules)} 개 (다른 꼴이라 건너뜀 {skipped})")
 
     g = Graph()
+    # 부품 대장은 QIF 보다 먼저 읽는다. 늦게 읽으면 QIF 가 대장에 없는 부품을 따로 만들어
+    # MES 의 부품과 갈라진다 (2026-10-12, NIST 자료에서 X1 이 공정에서 끊긴 원인)
+    if (a.data / "part_registry.csv").exists():
+        print(f"부품 대장: 식별자 {load_part_registry(g, a.data / 'part_registry.csv')} 개")
     for q in a.qif:
         s = load_qif(g, q)
         print(f"QIF {q.name}: 품번 {s['model']} · 측정 {s['measurements']} · 부품 {s['parts']} · "
               f"측정→부품 {s['linked']}")
     load_registry(g, a.data / "equipment_registry.csv")
     print("MES:", load_mes(g, a.data / "mes_process_runs.csv"))
-    print("CMMS:", load_maintenance(g, a.data / "maintenance_states.csv"))
+    if (a.data / "maintenance_states.csv").exists():
+        print("CMMS:", load_maintenance(g, a.data / "maintenance_states.csv"))
+    else:
+        print("CMMS: 정비 상태 파일이 없다. X1 의 마지막 연결은 답할 수 없다")
 
     before = len(list(g.query(X1, initNs=PREFIX)))
     steps_before = [count(g, pattern) for _, pattern in X1_STEPS]
