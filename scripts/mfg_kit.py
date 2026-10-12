@@ -8,6 +8,7 @@
 | 파일 | 어디서 오나 | 무엇을 잇나 |
 |---|---|---|
 | QIF 측정 파일 | CMM 소프트웨어 | 측정 → 판정 → 실물 부품(품번/일련번호) |
+| measurements.csv | QIF 를 못 내보내는 CMM·검사 기록 | 같은 것. 한 줄이 측정 하나 (2026-10-12, 독자 범위를 넓히려고) |
 | mes_process_runs.csv | MES | 부품 → 공정 실행 → 설비 문자열 · 작업자 · 시각 |
 | equipment_registry.csv | 설비 대장 | 시스템마다 다른 설비 문자열 → 설비 하나 · 역할 |
 | maintenance_states.csv | CMMS | 설비 문자열 → 정비 상태 · 시작·끝 시각 · 작업지시 (없으면 건너뜀) |
@@ -146,6 +147,35 @@ def identifier(g: Graph, system: str, value: str, target) -> URIRef:
     g.add((i, KIT.identifierSystem, Literal(system)))
     g.add((i, IOF.designates, target))
     return i
+
+
+def load_measurements_csv(g: Graph, path: Path) -> dict:
+    """QIF 가 없을 때 CSV 로 받는다. 열: model_number, serial_number, characteristic, value, status.
+
+    QIF 에서 키트가 쓰는 것은 판정과 부품 식별뿐이므로 그것만 받는다. 특성 이름과 값은
+    질의에서 쓸 수 있게 붙여 두지만 공차 판정은 하지 않는다. status 는 PASS · FAIL · UNDEFINED 다.
+    """
+    n = linked = 0
+    parts = set()
+    for k, row in enumerate(csv.DictReader(open(path, encoding="utf-8"))):
+        key = f"{row['model_number']}/{row['serial_number']}"
+        part = designated(g, key)
+        if part is None:
+            part = EX["part/" + quote(key, safe="/")]
+            g.add((part, RDF.type, IOF.MaterialArtifact))
+            identifier(g, "serial", key, part)
+        parts.add(part)
+        m = EX[f"meas/{path.stem}/{k}"]
+        g.add((m, RDF.type, QIF.CharacteristicMeasurement))
+        g.add((m, QIF.status, Literal(row["status"].strip().upper())))
+        g.add((m, QIF.ActualComponentId, part))
+        if row.get("characteristic"):
+            g.add((m, RDFS.label, Literal(row["characteristic"])))
+        if row.get("value"):
+            g.add((m, QIF.Value, Literal(row["value"])))
+        n += 1
+        linked += 1
+    return {"model": "(csv)", "measurements": n, "linked": linked, "parts": len(parts)}
 
 
 def load_part_registry(g: Graph, path: Path) -> int:
@@ -334,18 +364,13 @@ def vocabulary(g: Graph) -> Counter:
     return c
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", type=Path, default=Path("kit/examples"))
-    ap.add_argument("--qif", type=Path, nargs="*", default=QIF_FILES)
-    a = ap.parse_args()
-    t0 = time.time()
-
+def build(data: Path, qif_files: list[Path]) -> tuple[Graph, list, dict]:
+    """자료를 적재해 그래프를 만든다. 역할 분류는 아직 적용하지 않는다(materialize 가 한다)."""
     onto = load_ontology()
     rules, skipped = role_rules(onto)
     closure = superclasses(onto)
     print(f"IOF 에서 뽑은 역할 규칙 {len(rules)} 개 (다른 꼴이라 건너뜀 {skipped})")
-
+    a = argparse.Namespace(data=data, qif=qif_files)
     g = Graph()
     # 부품 대장은 QIF 보다 먼저 읽는다. 늦게 읽으면 QIF 가 대장에 없는 부품을 따로 만들어
     # MES 의 부품과 갈라진다 (2026-10-12, NIST 자료에서 X1 이 공정에서 끊긴 원인)
@@ -355,12 +380,26 @@ def main() -> int:
         s = load_qif(g, q)
         print(f"QIF {q.name}: 품번 {s['model']} · 측정 {s['measurements']} · 부품 {s['parts']} · "
               f"측정→부품 {s['linked']}")
+    if (a.data / "measurements.csv").exists():
+        s = load_measurements_csv(g, a.data / "measurements.csv")
+        print(f"측정 CSV: 측정 {s['measurements']} · 부품 {s['parts']}")
     load_registry(g, a.data / "equipment_registry.csv")
     print("MES:", load_mes(g, a.data / "mes_process_runs.csv"))
     if (a.data / "maintenance_states.csv").exists():
         print("CMMS:", load_maintenance(g, a.data / "maintenance_states.csv"))
     else:
         print("CMMS: 정비 상태 파일이 없다. X1 의 마지막 연결은 답할 수 없다")
+    return g, rules, closure
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", type=Path, default=Path("kit/examples"))
+    ap.add_argument("--qif", type=Path, nargs="*", default=QIF_FILES,
+                    help="QIF 측정 파일. 없으면 --qif 만 적는다(measurements.csv 를 쓴다)")
+    a = ap.parse_args()
+    t0 = time.time()
+    g, rules, closure = build(a.data, a.qif)
 
     before = len(list(g.query(X1, initNs=PREFIX)))
     steps_before = [count(g, pattern) for _, pattern in X1_STEPS]

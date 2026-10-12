@@ -6,6 +6,7 @@ CMM 측정 파일(QIF)과 CSV 세 개를 넣으면, 공개 온톨로지(IOF) 어
 
     python scripts/mfg_kit.py                        # 예제로 실행
     python scripts/mfg_kit.py --data 내자료 --qif a.qif b.qif
+    python scripts/mfg_kit.py --data 내자료 --qif     # QIF 없이 measurements.csv 로
 
 ## 넣는 것
 
@@ -14,9 +15,14 @@ CMM 측정 파일(QIF)과 CSV 세 개를 넣으면, 공개 온톨로지(IOF) 어
 | 파일 | 어디서 | 열 |
 |---|---|---|
 | QIF 측정 파일 | CMM 소프트웨어 | 그대로. `Part/ModelNumber` 와 `ActualComponent/SerialNumber` 를 쓴다 |
+| `measurements.csv` (QIF 가 없을 때) | CMM·검사 기록 내보내기 | 품번 · 일련번호 · 특성 · 값 · 판정(PASS · FAIL · UNDEFINED). 한 줄이 측정 하나 |
 | `mes_process_runs.csv` | MES | 품번 · 일련번호 · 실행 번호 · 공정 · 설비 문자열 · 작업자 · 시작 · 끝 |
 | `equipment_registry.csv` | 설비 대장 | 설비 ID · 그 설비를 부르는 문자열 · 어느 시스템의 문자열인가 · 종류 · 역할 |
 | `maintenance_states.csv` | CMMS | 설비 문자열 · 상태(Operating · Degraded · Failed) · 시작 · 끝 · 작업지시 |
+
+QIF 를 내보내지 못하는 CMM 이 더 많다. 그럴 때는 검사 기록을 `measurements.csv` 틀로 내보낸다.
+키트가 QIF 에서 쓰는 것은 판정과 부품 식별뿐이라 CSV 로도 같은 질문에 답한다.
+`examples-csv/` 는 공개 표본 하나의 측정 600 건을 이 틀로 옮긴 예제다.
 
 설비 대장에는 **같은 설비를 시스템마다 다르게 부르는 문자열을 모두** 한 줄씩 적는다.
 예제에서 MES 는 `M-07`, CMMS 는 `MC007` 로 같은 설비를 부른다.
@@ -49,6 +55,18 @@ QIF 는 공개 표본 두 개(000454 · 000473)다. **MES · 설비 대장 · CM
 - P2(공정의 설비와 작업자), X2(정비 상태별 부적합)는 **어휘를 더하지 않고 질의만 써서** 답했다
 - 그래프가 쓴 어휘는 IOF 18 · BFO 1 · QIF 요소 이름 3 · 키트 4 다. 키트가 만든 넷은
   식별자 값·체계와 시작·끝 시각이다. IOF 에 그 자리를 채울 속성이 없었다(0036, 0038)
+
+## 질문을 더하는 비용
+
+키트가 자리를 잡은 뒤 질문 셋을 더 넣어 보았다(`scripts/mfg_kit_more.py`).
+셋 다 어휘를 더하지 않았고 질의는 5 ~ 9 줄, 실행은 110 ms 안이다. 사람이 질의를 쓰는
+시간은 재지 않았다.
+
+| 질문 | 줄 | 실행 |
+|---|---:|---:|
+| Q2 품번별로 부적합이 처음 난 공정 실행 시각과 그 뒤 건수 | 6 | 108 ms |
+| M11 설비의 현재 정비 상태(끝 시각이 없는 상태) | 5 | 4 ms |
+| X5 정비 작업지시가 다룬 구간에 만든 부품과 그중 부적합 | 9 | 36 ms |
 
 ## 아직 못 하는 것
 

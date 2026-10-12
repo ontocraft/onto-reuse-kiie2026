@@ -1,0 +1,5 @@
+equipment_id,identifier,system,kind,roles
+machining-center-07,M-07,MES,머시닝센터,equipment;maintainable
+machining-center-07,MC007,CMMS,머시닝센터,equipment;maintainable
+machining-center-12,M-12,MES,머시닝센터,equipment;maintainable
+machining-center-12,MC012,CMMS,머시닝센터,equipment;maintainable

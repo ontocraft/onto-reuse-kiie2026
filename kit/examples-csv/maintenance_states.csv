@@ -1,0 +1,5 @@
+identifier,state,start,end,work_order
+MC007,Operating,2026-08-25T00:00,2026-09-01T09:30,
+MC007,Degraded,2026-09-01T09:30,2026-09-02T10:00,WO-118
+MC007,Operating,2026-09-02T10:00,,
+MC012,Operating,2026-08-25T00:00,,
