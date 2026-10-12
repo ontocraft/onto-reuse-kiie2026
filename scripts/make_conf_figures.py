@@ -273,7 +273,91 @@ def fig3() -> None:
           f"측정의 공정 참조 {has_pid}")
 
 
+
+def fig_kit() -> None:
+    """X1 사슬의 끊긴 곳 넷과 키트의 처방. 위는 공개 정의 그대로, 아래는 키트.
+
+    ⚠️ 그림에 쓴 IOF 이름이 배포판에 없으면 멈춘다. 이름을 손으로 적었기 때문이다.
+    """
+    import matplotlib.patches as mp
+    iof = "".join(p.read_text(encoding="utf-8")
+                  for p in Path("data/ontology/iof-src").glob("*.rdf"))
+    names = ["MaterialArtifact", "ManufacturingProcess", "hasOutput", "Identifier", "designates",
+             "hasMaintenanceState", "MaintenanceState", "MaintainableMaterialItem", "hasRole",
+             "TemporalInstantValueExpression"]
+    missing = [n for n in names if f'rdf:about="&iof-constr;{n}"' not in iof]
+    if missing:
+        sys.exit(f"그림의 IOF 이름이 배포판에 없다: {missing}")
+
+    fig, ax = plt.subplots(figsize=(6.8, 3.5))
+    ax.set_xlim(-0.5, 100.5); ax.set_ylim(0, 60); ax.axis("off")
+    w, h = 15.0, 11.0
+    gap = (100 - 5 * w) / 4
+    xs = [i * (w + gap) for i in range(5)]
+
+    def box(x, y, title, sub, kind):
+        fc, hatch = {"ok": ("#ffffff", ""), "gap": ("#ffffff", "////"),
+                     "kit": ("#e4e4e4", "")}[kind]
+        ax.add_patch(mp.FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.2",
+                                       fc=fc, ec="#222", lw=0.8, hatch=hatch))
+        white = dict(fc="white", ec="none", pad=0.4)
+        ax.text(x + w / 2, y + h - 3.2, title, ha="center", va="center", fontsize=6.8, bbox=white)
+        ax.text(x + w / 2, y + 3.0, sub, ha="center", va="center", fontsize=5.4,
+                linespacing=1.1, bbox=white)
+
+    def arrow(i, y, label, kind, mark=""):
+        xa, xb = xs[i] + w + 0.3, xs[i + 1] - 0.3
+        ym = y + h / 2
+        style = (0, (2.2, 1.8)) if kind == "cut" else "-"
+        ax.annotate("", xy=(xb, ym), xytext=(xa, ym),
+                    arrowprops=dict(arrowstyle="-|>", lw=1.0, color="#222", linestyle=style))
+        if kind == "cut":
+            ax.text((xa + xb) / 2, ym, "×", ha="center", va="center", fontsize=9, color="#222",
+                    bbox=dict(fc="white", ec="none", pad=0.1))
+        # 관계 이름은 상자 아래 띠에 둔다. 상자와 겹치지 않는다
+        ax.text((xa + xb) / 2, y - 1.2, label, ha="center", va="top", fontsize=5.0,
+                linespacing=1.05)
+        if mark:
+            ax.text((xa + xb) / 2, ym + 2.4, mark, ha="center", va="bottom", fontsize=6.5)
+
+    # 위: 공개 정의 그대로
+    yt = 41
+    ax.text(0.5, yt + h + 3.5, "공개 정의 그대로", fontsize=7.5, weight="bold")
+    box(xs[0], yt, "측정·판정", "QIF\nFAIL 319건", "ok")
+    box(xs[1], yt, "공정 기록", "QIF\n공개 파일 0건", "gap")
+    box(xs[2], yt, "설비", "문자열만\n있음", "gap")
+    box(xs[3], yt, "정비 대상", "추론 없이\n0건", "gap")
+    box(xs[4], yt, "정비 상태", "시간 없음", "gap")
+    arrow(0, yt, "Manufacturing\nProcessId", "cut", "①")
+    arrow(1, yt, "설비 개체로\n가는 정의 없음", "cut", "②")
+    arrow(2, yt, "클래스 이름\n질의", "cut", "③")
+    arrow(3, yt, "hasMaintenance\nState", "cut", "④")
+
+    # 아래: 키트
+    yb = 12
+    ax.text(0.5, yb + h + 3.5, "시작 키트", fontsize=7.5, weight="bold")
+    box(xs[0], yb, "측정·판정", "QIF", "ok")
+    box(xs[1], yb, "부품", "품번/일련번호\n(Identifier)", "kit")
+    box(xs[2], yb, "공정 실행", "MES", "kit")
+    box(xs[3], yb, "설비", "문자열 여럿 →\n개체 하나 + 역할", "kit")
+    box(xs[4], yb, "정비 상태", "CMMS\n시작·끝 구간", "kit")
+    arrow(0, yb, "ActualCom-\nponentId", "ok", "①")
+    arrow(1, yb, "hasOutput", "ok", "①")
+    arrow(2, yb, "has participant", "ok", "②")
+    arrow(3, yb, "hasMaintenance\nState", "ok", "③④")
+
+    leg = [mp.Patch(fc="#ffffff", ec="#222", label="공개 자료에 있음"),
+           mp.Patch(fc="#ffffff", ec="#222", hatch="////", label="공개 자료에서 끊김"),
+           mp.Patch(fc="#e4e4e4", ec="#222", label="키트가 CSV로 채움")]
+    ax.legend(handles=leg, loc="lower center", ncol=3, fontsize=6.3, frameon=False,
+              bbox_to_anchor=(0.5, -0.06))
+    fig.tight_layout(pad=0.2)
+    OUT.mkdir(parents=True, exist_ok=True)
+    fig.savefig(OUT / "그림1-끊긴-곳과-처방.png", dpi=220)
+    print("그림 1(키트) 저장. IOF 이름", len(names), "개 확인")
+
+
 if __name__ == "__main__":
     if not KO:
         print("⚠️ 한글 폰트를 찾지 못했다. 이름이 깨질 수 있다")
-    fig1(); fig2(); fig3()
+    fig1(); fig2(); fig3(); fig_kit()

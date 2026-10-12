@@ -7,6 +7,14 @@ Reproduction materials for "Distinctions to Preserve When Reusing Manufacturing 
 (KIIE Fall Conference 2026, to appear). Competency questions, requirement-element
 assignments, the derived schema, and analysis scripts.
 
+## 제조 AI 시작 키트
+
+`kit/` 은 QIF 측정 파일과 CSV 세 개(MES 공정 실행, 설비 대장, CMMS 정비 상태)를 넣으면
+IOF 어휘로 지식그래프를 만들고 「부적합이 난 부품을 만든 설비는 그때 정비 상태가 어땠나」에
+답하는 시작 키트다. 사용법은 `kit/README.md` 에 있다.
+
+    python scripts/mfg_kit.py                  # kit/examples 로 실행
+
 ## 들어 있는 것
 
 | 파일 | 내용 |
@@ -18,6 +26,7 @@ assignments, the derived schema, and analysis scripts.
 | `scripts/mfg_qif.py` | QIF 타입의 정의 필드와 공개 측정 파일의 관측 필드(5절) |
 | `scripts/mfg_cover.py` | 역량 질문과 스키마 요소의 대조(7절) |
 | `scripts/mfg_hermit.py` | 역할 정의 클래스 4개의 HermiT 분류(6.2절) |
+| `scripts/mfg_kit.py` | 시작 키트. 적재 · 역할 분류 구체화 · 질의 |
 | `scripts/mfg_x1_run.py` | 질문 X1을 SPARQL로 실행해 끊기는 연결을 확인(7절) |
 | `scripts/mfg_qif_corpus.py` | 공개 QIF 파일 62개에서 질문 다섯의 QIF 구간이 채워지는지 집계(7절, 표 7) |
 | `scripts/make_conf_figures.py` | 논문 그림 1~3을 `figures/`에 그린다. 그림 3은 `data/mfg/대조-단계.json`을 읽는다 |

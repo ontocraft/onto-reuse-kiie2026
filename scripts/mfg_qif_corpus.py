@@ -109,7 +109,27 @@ def judge(path: Path) -> dict:
                 and child(target, "MachineIdentifier") is not None:
             x1 += 1
 
+    # 0035: 공정 참조 대신 실물 부품의 일련번호까지 가는가. 측정 묶음 단위 참조도 따라간다
+    parent = {c: p for p in root.iter() for c in p}
+
+    def components(m):
+        ids = [c.text.strip() for c in m if local(c.tag) == "ActualComponentId" and c.text]
+        x = m
+        while not ids and x in parent:
+            x = parent[x]
+            if local(x.tag) == "MeasurementResults":
+                ids = [i.text.strip() for c in x if local(c.tag) == "ActualComponentIds"
+                       for i in c if i.text]
+        return [by_id[i] for i in ids if i in by_id]
+    to_part = to_serial = 0
+    for m in fails:
+        cs = components(m)
+        to_part += bool(cs)
+        to_serial += any((c.text or "").strip() for p_ in cs for c in p_
+                         if local(c.tag) == "SerialNumber")
+
     return {"측정": len(meas), "판정": len(judged), "FAIL": len(fails),
+            "FAIL→부품": to_part, "FAIL→일련번호": to_serial,
             "계획": len(plans), "공정기록": len(mpts),
             "Q1": q1, "Q2": q2, "Q2*": q2_loose, "Q3": q3, "Q3*": plan_chars, "P2": p2, "X1": x1,
             "공정참조": sum(child(m, "ManufacturingProcessId") is not None for m in meas)}
@@ -136,7 +156,9 @@ def main() -> int:
         for k, v in r.items():
             total[k] += v
     print(f"측정 {total['측정']} · 판정 {total['판정']} · FAIL {total['FAIL']} · "
-          f"측정의 공정 참조 {total['공정참조']} · 공정 실행 기록 {total['공정기록']}\n")
+          f"측정의 공정 참조 {total['공정참조']} · 공정 실행 기록 {total['공정기록']}")
+    print(f"FAIL {total['FAIL']} 중 부품까지 {total['FAIL→부품']} · 일련번호까지 {total['FAIL→일련번호']} "
+          f"(파일 {sum(1 for r in rows.values() if r['FAIL→일련번호'])} 개)\n")
     print("질문  QIF 구간이 답한 파일 / 전체   (근거 요소 수)")
     for q in QUESTIONS:
         k = sum(1 for r in rows.values() if r[q])
