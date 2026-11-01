@@ -1,3 +1,4 @@
 rdflib>=7
 owlready2>=0.46
 matplotlib>=3.8
+pyoxigraph>=0.4

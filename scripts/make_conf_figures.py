@@ -275,7 +275,7 @@ def fig3() -> None:
 
 
 def fig_kit() -> None:
-    """X1 사슬의 끊긴 곳 넷과 키트의 처방. 위는 공개 정의 그대로, 아래는 키트.
+    """X1 사슬의 끊긴 곳 넷과 키트의 보완. 위는 공개 정의 그대로, 아래는 키트.
 
     ⚠️ 그림에 쓴 IOF 이름이 배포판에 없으면 멈춘다. 이름을 손으로 적었기 때문이다.
     """
@@ -354,7 +354,7 @@ def fig_kit() -> None:
               bbox_to_anchor=(0.5, -0.06))
     fig.tight_layout(pad=0.2)
     OUT.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT / "그림1-끊긴-곳과-처방.png", dpi=220)
+    fig.savefig(OUT / "그림1-끊긴-곳과-보완.png", dpi=220)
     print("그림 1(키트) 저장. IOF 이름", len(names), "개 확인")
 
 
