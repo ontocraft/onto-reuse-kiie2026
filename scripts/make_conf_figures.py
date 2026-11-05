@@ -327,7 +327,7 @@ def fig_kit() -> None:
     box(xs[1], yt, "공정 기록", "QIF\n공개 파일 0건", "gap")
     box(xs[2], yt, "설비", "문자열만\n있음", "gap")
     box(xs[3], yt, "정비 대상", "추론 없이\n0건", "gap")
-    box(xs[4], yt, "정비 상태", "시간 없이 붙이면\n「그때」를 못 물음", "risk")  # ④ 는 정의에서 본 설계상 위험
+    box(xs[4], yt, "정비 상태", "시간 없이 붙이면\n「그때」를 못 물음", "risk")  # ④ 는 공개 자료에서 센 것이 아니라 정의를 보고 판단한 것
     arrow(0, yt, "Manufacturing\nProcessId", "cut", "①")
     arrow(1, yt, "설비 개체로\n가는 정의 없음", "cut", "②")
     arrow(2, yt, "클래스 이름\n질의", "cut", "③")
@@ -348,7 +348,7 @@ def fig_kit() -> None:
 
     leg = [mp.Patch(fc="#ffffff", ec="#222", label="공개 자료에 있음"),
            mp.Patch(fc="#ffffff", ec="#222", hatch="////", label="공개 자료에서 끊김"),
-           mp.Patch(fc="#ffffff", ec="#222", hatch="...", label="정의에서 본 설계상 위험"),
+           mp.Patch(fc="#ffffff", ec="#222", hatch="...", label="정의를 보고 판단한 것"),
            mp.Patch(fc="#e4e4e4", ec="#222", label="키트가 CSV로 채움")]
     ax.legend(handles=leg, loc="lower center", ncol=3, fontsize=6.3, frameon=False,
               bbox_to_anchor=(0.5, -0.06))
